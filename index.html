@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Songbook</title>
+<meta name="theme-color" content="#1c1b22">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon.svg">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<style>
+:root{--bg:#f6f5f2;--panel:#fff;--text:#1c1b22;--muted:#6b6874;--line:#e2dfd8;--accent:#d9480f;--chord:#c2410c}
+@media (prefers-color-scheme:dark){:root{--bg:#141318;--panel:#1f1d25;--text:#ece9f1;--muted:#9a96a4;--line:#2e2b36;--accent:#ff8a4c;--chord:#ffa26b}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;padding-bottom:env(safe-area-inset-bottom)}
+header{position:sticky;top:0;z-index:5;background:var(--panel);border-bottom:1px solid var(--line);padding:10px 16px;padding-top:calc(10px + env(safe-area-inset-top));display:flex;gap:8px;align-items:center}
+header h1{font-size:18px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+button{font:inherit;border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:8px;padding:8px 12px;cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+main{max-width:860px;margin:0 auto;padding:16px}
+input,textarea,select{font:inherit;width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--text)}
+textarea{font-family:ui-monospace,Consolas,monospace;min-height:280px;font-size:14px}
+label{display:block;font-size:13px;color:var(--muted);margin:14px 0 4px}
+.search{margin-bottom:12px}
+.song-item{display:flex;justify-content:space-between;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:8px;cursor:pointer}
+.song-item small{color:var(--muted)}
+.badge{font-size:12px;border:1px solid var(--line);border-radius:99px;padding:2px 8px;color:var(--muted);align-self:center}
+.meta{color:var(--muted);margin-bottom:12px}
+.tools{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
+.sheet{font-family:ui-monospace,Consolas,monospace;font-size:var(--fs,15px);white-space:pre;overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}
+.line{display:flex;flex-wrap:wrap;align-items:flex-end;min-height:1.4em}
+.seg{display:inline-flex;flex-direction:column}
+.seg .c{color:var(--chord);font-weight:700;min-height:1.3em;cursor:pointer;padding-right:.6ch}
+.chordline .c{color:var(--chord);font-weight:700;cursor:pointer}
+.section{color:var(--muted);font-weight:700;margin-top:10px}
+.tab{color:var(--text)}
+.empty{color:var(--muted);text-align:center;padding:40px 0}
+dialog{border:none;border-radius:14px;background:var(--panel);color:var(--text);padding:18px;max-width:320px}
+dialog::backdrop{background:#0008}
+.chip{display:inline-block;margin:0 6px 6px 0}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.hint{font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <button id="back" hidden>←</button>
+  <h1 id="title">Songbook</h1>
+  <button id="add" class="primary">+ Song</button>
+</header>
+<main id="app"></main>
+
+<dialog id="chordDlg">
+  <div id="chordBox"></div>
+  <p style="text-align:right;margin:10px 0 0"><button onclick="chordDlg.close()">Schließen</button></p>
+</dialog>
+
+<script>
+// ---------- Akkord-Griffe (Saiten E A D G H e, -1 = nicht spielen, 0 = leer) ----------
+const CHORDS = {
+  "C":[-1,3,2,0,1,0],"Cm":[-1,3,5,5,4,3],"C7":[-1,3,2,3,1,0],"Cmaj7":[-1,3,2,0,0,0],
+  "D":[-1,-1,0,2,3,2],"Dm":[-1,-1,0,2,3,1],"D7":[-1,-1,0,2,1,2],"Dmaj7":[-1,-1,0,2,2,2],"Dsus4":[-1,-1,0,2,3,3],
+  "E":[0,2,2,1,0,0],"Em":[0,2,2,0,0,0],"E7":[0,2,0,1,0,0],"Em7":[0,2,0,0,0,0],
+  "F":[1,3,3,2,1,1],"Fm":[1,3,3,1,1,1],"Fmaj7":[-1,-1,3,2,1,0],"F7":[1,3,1,2,1,1],
+  "G":[3,2,0,0,0,3],"Gm":[3,5,5,3,3,3],"G7":[3,2,0,0,0,1],"Gmaj7":[3,2,0,0,0,2],
+  "A":[-1,0,2,2,2,0],"Am":[-1,0,2,2,1,0],"A7":[-1,0,2,0,2,0],"Am7":[-1,0,2,0,1,0],"Asus4":[-1,0,2,2,3,0],"Asus2":[-1,0,2,2,0,0],
+  "B":[-1,2,4,4,4,2],"Bm":[-1,2,4,4,3,2],"B7":[-1,2,1,2,0,2],"Bb":[-1,1,3,3,3,1],
+  "H":[-1,2,4,4,4,2],"Hm":[-1,2,4,4,3,2],"H7":[-1,2,1,2,0,2],
+  "Cadd9":[-1,3,2,0,3,0],"G6":[3,2,0,0,0,0],"Gadd9":[3,0,0,2,0,3],"Dsus2":[-1,-1,0,2,3,0],"Fadd9":[-1,-1,3,2,1,3],
+  "Dm7":[-1,-1,0,2,1,1],"Em9":[0,2,0,0,0,2],"E5":[0,2,2,-1,-1,-1],"G5":[3,5,5,-1,-1,-1],"Esus4":[0,2,2,2,0,0],
+  "C#m":[-1,4,6,6,5,4],"F#m":[2,4,4,2,2,2],"F#":[2,4,4,3,2,2],"G#m":[4,6,6,4,4,4],"Eb":[-1,-1,1,3,4,3]
+};
+
+// ---------- Akkord-Generator (Barré-Formen) ----------
+// Offsets je Saite (E A D G H e) relativ zum Grundton-Bund; null = nicht spielen
+const X=null;
+const SHAPES={ // [E-Form (Grundton auf E-Saite), A-Form (Grundton auf A-Saite)]
+  "":     [[0,2,2,1,0,0],[X,0,2,2,2,0]],
+  "m":    [[0,2,2,0,0,0],[X,0,2,2,1,0]],
+  "7":    [[0,2,0,1,0,0],[X,0,2,0,2,0]],
+  "m7":   [[0,2,0,0,0,0],[X,0,2,0,1,0]],
+  "maj7": [[0,X,1,1,0,X],[X,0,2,1,2,0]],
+  "6":    [[0,X,-1,1,2,X].map(v=>v===-1?X:v),[X,0,2,2,2,2]],
+  "m6":   [[0,X,-1,0,2,X].map(v=>v===-1?X:v),[X,0,2,2,1,2]],
+  "sus2": [null,[X,0,2,2,0,0]],
+  "sus4": [[0,2,2,2,0,0],[X,0,2,2,3,0]],
+  "7sus4":[[0,2,0,2,0,0],[X,0,2,0,3,0]],
+  "7sus2":[null,[X,0,2,0,0,0]],
+  "add9": [[0,2,4,1,0,0],[X,0,2,4,2,0]],
+  "madd9":[[0,2,4,0,0,0],[X,0,2,4,1,0]],
+  "9":    [null,[X,0,-1,0,0,0].map(v=>v===-1?X:v)],
+  "m9":   [[0,2,0,0,0,2],[X,0,-2,0,0,0].map(v=>v<0?X:v)],
+  "5":    [[0,2,2,X,X,X],[X,0,2,2,X,X]],
+  "dim":  [[0,1,2,0,X,X],[X,0,1,2,1,X]],
+  "dim7": [[0,X,-1,0,-1,X].map(v=>v<0?X:v),[X,0,1,2,1,2]],
+  "aug":  [[0,3,2,1,1,0],[X,0,3,2,2,1]]
+};
+const QUAL_ALIAS={"M7":"maj7","Δ":"maj7","maj":"","min":"m","2":"add9","sus":"sus4","m11":"m7","11":"7","7sus":"7sus4","6add9":"6","m6add9":"m6","add11":"","m7add11":"m7","b5":"dim","(b5)":"dim","+":"aug"};
+const ROOTS={C:0,"C#":1,Db:1,D:2,"D#":3,Eb:3,E:4,F:5,"F#":6,Gb:6,G:7,"G#":8,Ab:8,A:9,"A#":10,Bb:10,B:11,H:11};
+
+function generateChord(name){
+  const m=name.match(/^([A-H])([b#]?)(.*?)(\/[A-H][b#]?)?$/); if(!m) return null;
+  const root=ROOTS[m[1]+m[2]]; if(root===undefined) return null;
+  let q=m[3].replace(/^min/,"m"), note="";
+  const tries=[q]; if(QUAL_ALIAS[q]!==undefined) tries.push(QUAL_ALIAS[q]);
+  // schrittweise vereinfachen, falls der Typ unbekannt ist (z. B. m7add11 -> m7 -> m)
+  tries.push(q.replace(/add\d+|\(.*\)/g,""), q.startsWith("m")&&!q.startsWith("maj")?"m":"");
+  for(const t of tries){
+    const shp=SHAPES[t]; if(!shp) continue;
+    const opts=[]; if(shp[0]) opts.push({s:shp[0],f:(root-4+12)%12}); if(shp[1]) opts.push({s:shp[1],f:(root-9+12)%12});
+    opts.sort((a,b)=>a.f-b.f);
+    const o=opts[0];
+    if(t!==q && t!==QUAL_ALIAS[q]) note=`vereinfacht als ${m[1]+m[2]+t}`;
+    return {frets:o.s.map(v=>v===X?-1:o.f+v), note:[note, m[4]?`Bass: ${m[4].slice(1)}`:""].filter(Boolean).join(" · ")};
+  }
+  return null;
+}
+
+function chordSvg(name){
+  let f = CHORDS[name] || CHORDS[name.replace(/\/.*/,"")], note = name.includes("/")&&f?`Bass: ${name.split("/")[1]}`:"";
+  if(!f){ const g=generateChord(name); if(g){ f=g.frets; note=g.note } }
+  if(!f) return `<p><b>${esc(name)}</b></p><p class="hint">Für diesen Akkord ist kein Griffbild hinterlegt.</p>`;
+  return chordSvgFrets(name,f)+(note?`<p class="hint" style="text-align:center;margin:4px 0 0">${esc(note)}</p>`:"");
+}
+
+function chordSvgFrets(name,f){
+  const played=f.filter(x=>x>0), min=played.length?Math.min(...played):1, max=played.length?Math.max(...played):1;
+  const base = max>4 ? min : 1, W=180,H=210,x0=30,y0=40,sx=24,sy=32;
+  let s=`<svg viewBox="0 0 ${W} ${H}" width="220" role="img" aria-label="Griffbild ${esc(name)}" style="color:var(--text)">`;
+  s+=`<text x="${W/2}" y="20" text-anchor="middle" font-size="18" font-weight="700" fill="currentColor">${esc(name)}</text>`;
+  for(let i=0;i<6;i++) s+=`<line x1="${x0+i*sx}" y1="${y0}" x2="${x0+i*sx}" y2="${y0+5*sy}" stroke="currentColor" stroke-width="1.2"/>`;
+  for(let j=0;j<=5;j++) s+=`<line x1="${x0}" y1="${y0+j*sy}" x2="${x0+5*sx}" y2="${y0+j*sy}" stroke="currentColor" stroke-width="${j===0&&base===1?4:1.2}"/>`;
+  if(base>1) s+=`<text x="${x0-8}" y="${y0+sy*0.65}" text-anchor="end" font-size="13" fill="currentColor">${base}fr</text>`;
+  f.forEach((fr,i)=>{
+    const x=x0+i*sx;
+    if(fr<0) s+=`<text x="${x}" y="${y0-8}" text-anchor="middle" font-size="14" fill="currentColor">×</text>`;
+    else if(fr===0) s+=`<circle cx="${x}" cy="${y0-12}" r="5" fill="none" stroke="currentColor" stroke-width="1.5"/>`;
+    else s+=`<circle cx="${x}" cy="${y0+(fr-base+0.5)*sy}" r="9" fill="var(--chord)"/>`;
+  });
+  return s+`</svg>`;
+}
+
+// ---------- Speicher (IndexedDB) ----------
+const DB = {
+  db:null,
+  open(){return new Promise((res,rej)=>{const r=indexedDB.open("songbook",1);
+    r.onupgradeneeded=()=>r.result.createObjectStore("songs",{keyPath:"id"});
+    r.onsuccess=()=>{this.db=r.result;res()};r.onerror=()=>rej(r.error)})},
+  tx(mode){return this.db.transaction("songs",mode).objectStore("songs")},
+  all(){return new Promise(res=>{const r=this.tx("readonly").getAll();r.onsuccess=()=>res(r.result)})},
+  get(id){return new Promise(res=>{const r=this.tx("readonly").get(id);r.onsuccess=()=>res(r.result)})},
+  put(s){return new Promise(res=>{const r=this.tx("readwrite").put(s);r.onsuccess=()=>res()})},
+  del(id){return new Promise(res=>{const r=this.tx("readwrite").delete(id);r.onsuccess=()=>res()})}
+};
+
+// ---------- Transponieren ----------
+const NOTES=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"], FLAT={Db:"C#",Eb:"D#",Gb:"F#",Ab:"G#",Bb:"A#",H:"B"};
+function transposeChord(ch,n){
+  if(!n) return ch;
+  return ch.replace(/([A-H][b#]?)/g,m=>{const k=FLAT[m]||m,i=NOTES.indexOf(k);return i<0?m:NOTES[(i+n+120)%12]});
+}
+
+// ---------- Darstellung ----------
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const app=document.getElementById("app"), titleEl=document.getElementById("title"), backBtn=document.getElementById("back");
+const chordRe=/^[A-H][b#]?(m|maj|min|dim|aug|sus|add)?\d*(sus\d|add\d)?(\/[A-H][b#]?)?$/;
+
+function renderSheet(text,type,tr){
+  const out=[];
+  for(const raw of text.split(/\r?\n/)){
+    let line=raw;
+    const sec=line.match(/^\s*\[([A-Za-zÄÖÜäöü][A-Za-zÄÖÜäöü \-0-9]*)\]\s*$/);
+    if(sec){out.push(`<div class="section">${esc(line.trim())}</div>`);continue}
+    if(type==="tab"||/^[eBGDAEhHd]?\|?[-0-9hpbr\/\\|x~ ]{6,}$/.test(line.trim())&&/-{3,}/.test(line)){
+      out.push(`<div class="tab">${esc(line)||"&nbsp;"}</div>`);continue}
+    if(line.includes("[")){ // ChordPro: [Am]Text
+      const parts=line.split(/\[([^\]]+)\]/); let html=`<div class="line">`;
+      if(parts[0]) html+=`<span class="seg"><span class="c"></span><span>${esc(parts[0])}</span></span>`;
+      for(let i=1;i<parts.length;i+=2){const c=transposeChord(parts[i],tr);
+        html+=`<span class="seg"><span class="c" data-c="${esc(c)}">${esc(c)}</span><span>${esc(parts[i+1]||" ")}</span></span>`}
+      out.push(html+`</div>`);continue}
+    const tokens=line.trim().split(/\s+/);
+    if(line.trim() && tokens.every(t=>chordRe.test(t))){ // reine Akkordzeile über dem Text
+      out.push(`<div class="chordline">`+line.replace(/\S+/g,m=>{const c=transposeChord(m,tr);return `<span class="c" data-c="${esc(c)}">${esc(c)}</span>`})+`</div>`);continue}
+    out.push(`<div>${esc(line)||"&nbsp;"}</div>`);
+  }
+  return out.join("");
+}
+
+let scrolling=false, scrollTimer=null, speed=4;
+function nav(hash){clearInterval(scrollTimer);scrolling=false;location.hash=hash}
+window.addEventListener("hashchange",route);
+
+async function route(){
+  const [view,id]=location.hash.slice(1).split("/");
+  backBtn.hidden=!view;
+  if(view==="song") return showSong(id);
+  if(view==="edit") return showForm(id);
+  return showList();
+}
+
+async function showList(q=""){
+  titleEl.textContent="Songbook";
+  const songs=(await DB.all()).sort((a,b)=>a.title.localeCompare(b.title));
+  app.innerHTML=`<input class="search" id="q" placeholder="Suche nach Titel oder Interpret…" value="${esc(q)}">
+    <div id="list"></div>
+    <p class="tools" style="margin-top:16px"><button id="imp">Datei importieren</button><button id="exp">Alle exportieren</button>
+      <input type="file" id="impFile" accept=".json,application/json" hidden></p>`;
+  const impFile=document.getElementById("impFile");
+  document.getElementById("imp").onclick=()=>impFile.click();
+  impFile.onchange=async()=>{const f=impFile.files[0]; if(!f) return;
+    try{const list=JSON.parse(await f.text()); const n=await importList(list); alert(`${n} neue Songs importiert.`); showList()}
+    catch(e){alert("Die Datei konnte nicht gelesen werden.")}};
+  document.getElementById("exp").onclick=async()=>{
+    const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([JSON.stringify(await DB.all(),null,1)],{type:"application/json"}));
+    a.download="songbook_export.json"; a.click()};
+  const list=document.getElementById("list"), qi=document.getElementById("q");
+  const draw=()=>{const s=qi.value.toLowerCase();
+    const hit=songs.filter(x=>(x.title+" "+x.artist).toLowerCase().includes(s));
+    list.innerHTML=hit.length?hit.map(x=>`<div class="song-item" data-id="${x.id}"><div><b>${esc(x.title)}</b><br><small>${esc(x.artist||"–")}</small></div><span class="badge">${x.type==="tab"?"Tab":"Akkorde"}</span></div>`).join("")
+      :`<div class="empty">${songs.length?"Keine Treffer.":"Noch keine Songs. Tippe auf „+ Song“."}</div>`;
+    list.querySelectorAll(".song-item").forEach(el=>el.onclick=()=>nav("song/"+el.dataset.id))};
+  qi.oninput=draw; draw();
+}
+
+async function showSong(id){
+  const s=await DB.get(id); if(!s) return nav("");
+  let tr=0, fs=15;
+  titleEl.textContent=s.title;
+  clearInterval(scrollTimer); scrolling=false;
+  const draw=()=>{
+    const used=[...new Set((s.text.match(/\[([^\]]+)\]/g)||[]).map(x=>transposeChord(x.slice(1,-1),tr)))].filter(c=>chordRe.test(c));
+    app.innerHTML=`<div class="meta">${esc(s.artist||"")}${s.capo?` · Capo ${esc(s.capo)}`:""}${s.key?` · Tonart ${esc(transposeChord(s.key,tr))}`:""}${s.tuning?` · Tuning ${esc(s.tuning)}`:""}${s.difficulty?` · ${esc(s.difficulty)}`:""}</div>
+      ${s.url?`<p><a href="${esc(s.url)}" target="_blank" rel="noopener"><button type="button">Auf Ultimate Guitar öffnen ↗</button></a></p>`:""}
+      <div class="tools">
+        <button id="scroll">${scrolling?"⏸ Scroll":"▶ Auto-Scroll"}</button><button id="sDown">−</button><span>Tempo ${speed}</span><button id="sUp">+</button>
+      </div>
+      <div class="tools">
+        <button id="tDown">♭ −1</button><span>Transponieren: ${tr>0?"+":""}${tr}</span><button id="tUp">♯ +1</button>
+        <button id="fDown">A−</button><button id="fUp">A+</button>
+        <button id="edit">Bearbeiten</button><button id="del">Löschen</button>
+      </div>
+      ${used.length?`<div style="margin-bottom:10px">${used.map(c=>`<button class="chip c" data-c="${esc(c)}">${esc(c)}</button>`).join("")}</div>`:""}
+      <div class="sheet" style="--fs:${fs}px">${renderSheet(s.text,s.type,tr)}</div>
+      <p class="hint">Tippe auf einen Akkord, um das Griffbild zu sehen.</p>`;
+    app.querySelector("#scroll").onclick=()=>{scrolling=!scrolling;clearInterval(scrollTimer);
+      if(scrolling) scrollTimer=setInterval(()=>{window.scrollBy(0,1);if(innerHeight+scrollY>=document.body.scrollHeight-2){scrolling=false;clearInterval(scrollTimer);draw()}},Math.round(220/speed));
+      draw()};
+    app.querySelector("#sDown").onclick=()=>{speed=Math.max(1,speed-1);if(scrolling){scrolling=false;app.querySelector("#scroll").click()}else draw()};
+    app.querySelector("#sUp").onclick=()=>{speed=Math.min(10,speed+1);if(scrolling){scrolling=false;app.querySelector("#scroll").click()}else draw()};
+    app.querySelector("#tDown").onclick=()=>{tr--;draw()};
+    app.querySelector("#tUp").onclick=()=>{tr++;draw()};
+    app.querySelector("#fDown").onclick=()=>{fs=Math.max(10,fs-1);draw()};
+    app.querySelector("#fUp").onclick=()=>{fs=Math.min(28,fs+1);draw()};
+    app.querySelector("#edit").onclick=()=>nav("edit/"+s.id);
+    app.querySelector("#del").onclick=async()=>{if(confirm(`„${s.title}“ wirklich löschen?`)){await DB.del(s.id);nav("")}};
+    app.querySelectorAll("[data-c]").forEach(el=>el.onclick=()=>{chordBox.innerHTML=chordSvg(el.dataset.c);chordDlg.showModal()});
+  };
+  draw();
+}
+
+async function showForm(id){
+  const s=id&&id!=="new"?await DB.get(id):{id:crypto.randomUUID(),title:"",artist:"",type:"chords",key:"",capo:"",text:""};
+  titleEl.textContent=id&&id!=="new"?"Song bearbeiten":"Neuer Song";
+  app.innerHTML=`<form id="f">
+    <label>Titel *</label><input name="title" required value="${esc(s.title)}">
+    <label>Interpret</label><input name="artist" value="${esc(s.artist)}">
+    <div class="row">
+      <div><label>Art</label><select name="type"><option value="chords">Text mit Akkorden</option><option value="tab">Tabulatur</option></select></div>
+      <div><label>Tonart</label><input name="key" placeholder="z. B. Am" value="${esc(s.key)}"></div>
+    </div>
+    <div class="row">
+      <div><label>Capo (Bund)</label><input name="capo" inputmode="numeric" value="${esc(s.capo)}"></div>
+      <div><label>Tuning</label><input name="tuning" placeholder="E A D G H E" value="${esc(s.tuning||"")}"></div>
+    </div>
+    <div class="row">
+      <div><label>Schwierigkeit</label><select name="difficulty"><option value="">–</option><option>Anfänger</option><option>Mittel</option><option>Fortgeschritten</option></select></div>
+      <div><label>Link (z. B. Ultimate Guitar)</label><input name="url" type="url" placeholder="https://…" value="${esc(s.url||"")}"></div>
+    </div>
+    <label>Inhalt</label>
+    <textarea name="text" placeholder="[Strophe]&#10;[Am]Hier steht der [F]Text mit [C]Akkorden&#10;&#10;oder Akkorde in eigener Zeile:&#10;Am      F       C&#10;Text darunter&#10;&#10;Tabulatur:&#10;e|-----0---|&#10;B|---1-----|">${esc(s.text)}</textarea>
+    <p class="hint">Akkorde entweder in eckigen Klammern direkt im Text (<code>[Am]Wort</code>) oder als eigene Zeile über dem Text. Abschnitte mit <code>[Refrain]</code>, <code>[Strophe]</code> usw.</p>
+    <p style="display:flex;gap:8px;justify-content:flex-end"><button type="button" id="cancel">Abbrechen</button><button class="primary">Speichern</button></p>
+  </form>`;
+  const f=document.getElementById("f"); f.type.value=s.type; f.difficulty.value=s.difficulty||"";
+  document.getElementById("cancel").onclick=()=>history.back();
+  f.onsubmit=async e=>{e.preventDefault();
+    Object.assign(s,{title:f.title.value.trim(),artist:f.artist.value.trim(),type:f.type.value,key:f.key.value.trim(),capo:f.capo.value.trim(),tuning:f.tuning.value.trim(),difficulty:f.difficulty.value,url:f.url.value.trim(),text:f.text.value});
+    await DB.put(s); nav("song/"+s.id)};
+}
+
+document.getElementById("add").onclick=()=>nav("edit/new");
+backBtn.onclick=()=>nav("");
+
+(async()=>{
+  await DB.open();
+  if(!(await DB.all()).length){ // eigenes Beispiel, frei erfunden
+    await DB.put({id:"demo",title:"Kartoffelblues (Beispiel)",artist:"Songbook",type:"chords",key:"Am",capo:"",
+      text:"[Strophe]\n[Am]Morgens früh am [F]Küchentisch\n[C]Kaffee kalt, die [G]Zeitung frisch\n\n[Refrain]\nAm      F        C       G\nLa la la, das ist nur ein Test\n\n[Solo]\ne|-----0-----0---|\nB|---1---1-----1-|\nG|-2-----------2-|"});
+  }
+  await importFile("import/ug_import.json");
+  route();
+})();
+
+// Einmaliger Import einer Songliste (JSON-Array) – bereits vorhandene IDs werden nicht überschrieben
+async function importFile(path){
+  let list; try{ const r=await fetch(path,{cache:"no-store"}); if(!r.ok) return; list=await r.json() }catch(e){ return }
+  const n=await importList(list); if(n) console.log(`${n} Songs importiert`);
+}
+
+async function importList(list){
+  if(!Array.isArray(list)) throw new Error("kein Array");
+  const have=new Set((await DB.all()).map(s=>s.id)); let n=0;
+  for(const s of list){ if(!s||!s.id||!s.title||have.has(s.id)) continue; await DB.put(s); n++ }
+  return n;
+}
+
+if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
+</script>
+</body>
+</html>
