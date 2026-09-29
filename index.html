@@ -47,6 +47,7 @@ dialog::backdrop{background:#0008}
 <header>
   <button id="back" hidden>←</button>
   <h1 id="title">Songbook</h1>
+  <button id="studio" title="Aufnahme-Studio">🎙 Studio</button>
   <button id="add" class="primary">+ Song</button>
 </header>
 <main id="app"></main>
@@ -239,7 +240,7 @@ async function showSong(id){
       <div class="tools">
         <button id="tDown">♭ −1</button><span>Transponieren: ${tr>0?"+":""}${tr}</span><button id="tUp">♯ +1</button>
         <button id="fDown">A−</button><button id="fUp">A+</button>
-        <button id="edit">Bearbeiten</button><button id="del">Löschen</button>
+        <button id="edit">Bearbeiten</button><button id="del">Löschen</button><button id="rec">🎙 Aufnehmen</button>
       </div>
       ${used.length?`<div style="margin-bottom:10px">${used.map(c=>`<button class="chip c" data-c="${esc(c)}">${esc(c)}</button>`).join("")}</div>`:""}
       <div class="sheet" style="--fs:${fs}px">${renderSheet(s.text,s.type,tr)}</div>
@@ -254,6 +255,7 @@ async function showSong(id){
     app.querySelector("#fDown").onclick=()=>{fs=Math.max(10,fs-1);draw()};
     app.querySelector("#fUp").onclick=()=>{fs=Math.min(28,fs+1);draw()};
     app.querySelector("#edit").onclick=()=>nav("edit/"+s.id);
+    app.querySelector("#rec").onclick=()=>location.href="studio.html#song="+encodeURIComponent(s.id);
     app.querySelector("#del").onclick=async()=>{if(confirm(`„${s.title}“ wirklich löschen?`)){await DB.del(s.id);nav("")}};
     app.querySelectorAll("[data-c]").forEach(el=>el.onclick=()=>{chordBox.innerHTML=chordSvg(el.dataset.c);chordDlg.showModal()});
   };
@@ -291,6 +293,7 @@ async function showForm(id){
 }
 
 document.getElementById("add").onclick=()=>nav("edit/new");
+document.getElementById("studio").onclick=()=>location.href="studio.html";
 backBtn.onclick=()=>nav("");
 
 (async()=>{
