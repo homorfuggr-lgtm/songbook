@@ -1,0 +1,83 @@
+{
+  "name": "songbook-studio",
+  "productName": "Songbook Studio",
+  "version": "1.0.0",
+  "description": "Songbook mit Aufnahme-Studio und DAW-Anbindung",
+  "private": true,
+  "main": "desktop/main.js",
+  "desktopName": "songbook-studio.desktop",
+  "author": "homorfuggr-lgtm",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/homorfuggr-lgtm/songbook.git"
+  },
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --publish never"
+  },
+  "devDependencies": {
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "io.github.homorfuggr-lgtm.songbook-studio",
+    "productName": "Songbook Studio",
+    "artifactName": "Songbook-Studio-${version}-${os}-${arch}.${ext}",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "desktop/**",
+      "index.html",
+      "studio.html",
+      "manifest.json",
+      "icon.svg",
+      "sw.js"
+    ],
+    "electronLanguages": [
+      "de",
+      "en-US"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "artifactName": "Songbook-Studio-Setup-${version}.${ext}",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "portable": {
+      "artifactName": "Songbook-Studio-${version}-portable.${ext}"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
+      "category": "public.app-category.music",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Songbook Studio braucht das Mikrofon bzw. Audio-Interface für Aufnahmen."
+      }
+    },
+    "dmg": {
+      "artifactName": "Songbook-Studio-${version}-mac.${ext}"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Audio",
+      "syncDesktopName": true
+    }
+  }
+}

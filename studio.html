@@ -196,6 +196,12 @@ dialog input[type=range]{width:100%}
   <p style="text-align:right;margin:6px 0 0"><button onclick="expDlg.close()">Schließen</button></p>
 </dialog>
 
+<dialog id="newDlg"><form id="newForm">
+  <h3>Neues Projekt</h3>
+  <label for="newName">Name</label><input id="newName" required>
+  <p style="text-align:right;margin:16px 0 0"><button type="button" id="newCancel">Abbrechen</button> <button class="primary">Anlegen</button></p>
+</form></dialog>
+
 <input type="file" id="file" accept="audio/*" multiple hidden>
 
 <script>
@@ -474,7 +480,8 @@ async function setupMidi(){
   if(S.midiMode==="off"){sel.innerHTML="";sel.disabled=true;st.textContent="";return}
   if(!navigator.requestMIDIAccess){st.textContent="Dieser Browser unterstützt kein Web-MIDI – bitte Chrome, Edge oder Opera verwenden.";return}
   if(!midi){
-    try{midi=await navigator.requestMIDIAccess()}catch(e){st.textContent="Der MIDI-Zugriff wurde nicht erlaubt.";return}
+    try{midi=await navigator.requestMIDIAccess()}catch(e){
+      st.textContent=e.name==="NotAllowedError"||e.name==="SecurityError"?"Der MIDI-Zugriff wurde nicht erlaubt.":`MIDI ist auf diesem Gerät nicht verfügbar (${e.message})`;return}
     midi.onstatechange=()=>{const s=[...midi.inputs.keys(),...midi.outputs.keys()].join();if(s!==portSig){portSig=s;setupMidi()}};
     portSig=[...midi.inputs.keys(),...midi.outputs.keys()].join();
   }
@@ -855,11 +862,15 @@ $("trDel").onclick=async()=>{if(playing)return;if(confirm(`Spur „${curTrack.na
 $("expBtn").onclick=()=>{$("expStatus").textContent="";$("expDlg").showModal()};
 document.querySelectorAll(".exp button").forEach(b=>b.onclick=()=>doExport(b.dataset.x));
 
-$("proj").onchange=async()=>{
+$("proj").onchange=()=>{
   const v=$("proj").value;
-  if(v==="__new"){const name=prompt("Name des neuen Projekts:","Neues Projekt");if(name===null){$("proj").value=P.id;return}
-    await halt();flushSave();const p=await createProject(name.trim());return loadProject(p.id)}
-  loadProject(v);
+  if(v!=="__new") return loadProject(v);
+  $("proj").value=P.id; $("newName").value="Neues Projekt"; $("newDlg").showModal(); $("newName").select();
+};
+$("newCancel").onclick=()=>$("newDlg").close();
+$("newForm").onsubmit=async e=>{
+  e.preventDefault(); const name=$("newName").value.trim(); if(!name) return;
+  $("newDlg").close(); await halt(); flushSave(); loadProject((await createProject(name)).id);
 };
 $("pName").oninput=()=>{P.name=$("pName").value;$("proj").selectedOptions[0].textContent=P.name;saveProject()};
 $("pDel").onclick=async()=>{
@@ -912,7 +923,7 @@ matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>{readCs
   requestAnimationFrame(loop);
 })();
 
-if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
+if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{}); // im Desktop-Programm nicht nötig
 </script>
 </body>
 </html>

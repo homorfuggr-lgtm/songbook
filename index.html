@@ -319,7 +319,7 @@ async function importList(list){
   return n;
 }
 
-if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
+if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{}); // im Desktop-Programm nicht nötig
 </script>
 </body>
 </html>
