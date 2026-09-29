@@ -1,5 +1,5 @@
-const CACHE = "songbook-v2";
-const FILES = ["./", "./index.html", "./manifest.json", "./icon.svg"];
+const CACHE = "songbook-v3";
+const FILES = ["./", "./index.html", "./studio.html", "./manifest.json", "./icon.svg"];
 
 self.addEventListener("install", e => {
   self.skipWaiting();
