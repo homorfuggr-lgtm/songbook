@@ -276,7 +276,9 @@ function ensureCtx(){
     master=ctx.createGain(); master.connect(ctx.destination); outMeter=makeMeter(master);
     monGain=ctx.createGain(); monGain.gain.value=S.monitor?1:0; monGain.connect(ctx.destination);
     applyMix();
-    ready=ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET],{type:"text/javascript"}))).then(()=>{
+    // Blob-URL; bei direkt geöffneter Datei (file://) lehnt Chrome die ab, dann als data:-URL
+    ready=ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET],{type:"text/javascript"})))
+      .catch(()=>ctx.audioWorklet.addModule("data:text/javascript;base64,"+btoa(unescape(encodeURIComponent(WORKLET))))).then(()=>{
       recNode=new AudioWorkletNode(ctx,"rec",{numberOfInputs:1,numberOfOutputs:1,outputChannelCount:[1],channelCount:2,channelCountMode:"explicit",channelInterpretation:"speakers"});
       recNode.connect(silent); recNode.port.onmessage=onRec});
   }
